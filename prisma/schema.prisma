@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Store {
+  id                 Int      @id @default(1)
+  name               String
+  description        String   @default("")
+  contactPhone       String   @default("")
+  contactLine        String   @default("")
+  bankName           String
+  bankAccountName    String
+  bankAccountNumber  String
+  shippingFee        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String      @default("")
+  price       Int
+  stock       Int         @default(0)
+  imageKey    String?
+  active      Boolean     @default(true)
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems  OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  AWAITING_SLIP
+  PENDING_REVIEW
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  customerName  String
+  customerEmail String
+  customerPhone String
+  address       String
+  note          String      @default("")
+  subtotal      Int
+  shippingFee   Int
+  total         Int
+  status        OrderStatus @default(AWAITING_SLIP)
+  slipKey       String?
+  items         OrderItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  name      String
+  quantity  Int
+  unitPrice Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}

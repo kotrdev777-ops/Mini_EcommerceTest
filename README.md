@@ -1,68 +1,46 @@
-# Mini E-commerce MVP v0.1
+# Mini E-commerce
 
-ร้านค้าออนไลน์แบบติดตั้งแยกต่อผู้ซื้อหนึ่งราย: หน้าสินค้า, หมวดหมู่, ตะกร้า, Checkout, โอนเงินแนบสลิป, หลังบ้านจัดการสินค้า/คำสั่งซื้อ/ร้านค้า
+ร้านค้าออนไลน์ Next.js สำหรับร้านเดียว พร้อม PostgreSQL, รูปสินค้า และสลิปชำระเงิน
 
-## เริ่มใช้งานบน Railway
+## Deploy บน Vercel
 
-โปรเจกต์ต้องมี **Web Service + PostgreSQL + Storage Bucket** (3 ทรัพยากร) ก่อนนำไปทำ Railway Template
+1. สร้าง Vercel project จาก repository นี้ แนะนำแผน Pro เมื่อใช้รับออเดอร์เชิงพาณิชย์
+2. ใน Storage ของ project สร้าง PostgreSQL ผ่าน Marketplace (เช่น Neon) และเชื่อมกับ project ให้มี `DATABASE_URL` สำหรับ Production
+3. สร้าง Vercel Blob **สอง store**: `products` แบบ **Public** และ `slips` แบบ **Private** เชื่อมทั้งสอง store กับ project แล้วคัดลอก read/write token ไปตั้ง Environment Variables ชื่อ `BLOB_PRODUCTS_READ_WRITE_TOKEN` และ `BLOB_SLIPS_READ_WRITE_TOKEN` ตามลำดับ ห้ามนำ token ไปไว้ใน client หรือ Git
+4. ตั้ง `SESSION_SECRET` เป็นค่าสุ่มอย่างน้อย 32 ตัวอักษร และ `SETUP_SECRET` เป็นค่าสุ่มอีกค่าหนึ่งอย่างน้อย 16 ตัวอักษรใน Vercel Environment Variables
+5. Deploy: `vercel.json` สั่ง `npm run vercel-build` ซึ่ง generate Prisma client, รัน `prisma migrate deploy` แล้ว build Next.js หาก migration ล้มเหลว build จะหยุด
+6. เปิด `/setup` เพื่อสร้างร้านและ Admin ครั้งแรก จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป
 
-1. สร้าง PostgreSQL และ Storage Bucket ใน Railway project
-2. เชื่อม repo นี้เป็น Web Service และตั้งตัวแปรด้านล่างผ่าน Variable References หรือค่าที่สุ่มสร้าง
-3. ตั้ง public domain ให้ Web Service และ Deploy; `railway.json` จะรัน migration ก่อนเปิดแอป
-4. เปิด `/setup` กรอก `SETUP_SECRET` ที่อยู่ใน Railway Variables, ชื่อร้าน และบัญชี Admin
-5. เพิ่มสินค้าใน `/admin/products`, ตั้งบัญชีรับโอนใน `/admin/settings`, ทดลองสั่งซื้อและตรวจสลิปใน `/admin/orders`
-
-| Web variable | ค่า |
+| Variable | ใช้ทำอะไร |
 | --- | --- |
-| `DATABASE_URL` | Reference ไป `Postgres.DATABASE_URL` |
-| `SESSION_SECRET` | สุ่มอย่างน้อย 32 ตัวอักษร |
-| `SETUP_SECRET` | สุ่มอย่างน้อย 16 ตัวอักษร; ใช้ครั้งแรกเท่านั้น |
-| `S3_ENDPOINT` | Reference ไป Bucket `ENDPOINT` |
-| `S3_REGION` | Reference ไป Bucket `REGION` |
-| `S3_BUCKET` | Reference ไป Bucket `BUCKET` |
-| `S3_ACCESS_KEY_ID` | Reference ไป Bucket `ACCESS_KEY_ID` |
-| `S3_SECRET_ACCESS_KEY` | Reference ไป Bucket `SECRET_ACCESS_KEY` |
+| `DATABASE_URL` | PostgreSQL connection string จาก Marketplace |
+| `DATABASE_URL_UNPOOLED` | Neon direct connection สำหรับ Prisma migration; Neon integration เพิ่มให้อัตโนมัติ หากไม่มีจะใช้ `DATABASE_URL` |
+| `BLOB_PRODUCTS_READ_WRITE_TOKEN` | Token ของ public Blob store สำหรับรูปสินค้า |
+| `BLOB_SLIPS_READ_WRITE_TOKEN` | Token ของ private Blob store สำหรับสลิป |
+| `SESSION_SECRET` | Signing key สำหรับ Admin session |
+| `SETUP_SECRET` | รหัสติดตั้งร้านครั้งแรก |
 
-Bucket เป็น private: รูปสินค้าถูกส่งผ่าน `/api/media/...` และสลิปเปิดได้เฉพาะ Admin ที่ล็อกอิน การแสดงรูปจำนวนมากผ่าน Web Service อาจมีค่า bandwidth ของ service
+หากเปิด Preview deployment ให้เชื่อม PostgreSQL และ Blob stores **แยกจาก Production** ใน Environment Variables ของ Preview เพราะ build ของ Preview จะรัน migration ด้วย ควรเลือก database region ใกล้กับ Vercel Functions เพื่อลด latency
 
-## รันในเครื่องสำหรับผู้พัฒนา
+รูปสินค้าเปิดสาธารณะผ่าน `/api/media/...`; สลิปอยู่ใน private Blob store และ route ตรวจ Admin login ก่อนส่งไฟล์ ขนาดรูปสูงสุด 5 MB และอัปโหลดจาก browser ไป Blob โดยตรง ไม่ผ่านขีดจำกัด request body ของ Vercel Function
 
-ต้องมี Node.js 22+, PostgreSQL และ S3-compatible bucket (ใช้ bucket ทดสอบแยกจาก production) หากใช้ MinIO ในเครื่อง ให้ตั้ง `S3_FORCE_PATH_STYLE=true`
+หากย้ายร้านที่มีข้อมูลจาก Railway/S3 อยู่แล้ว ให้ย้ายไฟล์ `products/...` ไป public store และ `slips/...` ไป private store โดย **คง pathname เดิม** ก่อนเปลี่ยนเว็บไป Vercel; ค่า `imageKey` และ `slipKey` ใน PostgreSQL อ้าง pathname เหล่านี้อยู่ การย้าย PostgreSQL ต้องทำ backup/restore แยกจากการ deploy โค้ด
+
+## พัฒนาในเครื่อง
+
+ต้องมี Node.js 22+ และ PostgreSQL รวมทั้ง Blob stores สำหรับ development แยกจาก Production ใช้ `vercel env pull .env.local` หรือคัดลอก `.env.example` แล้วเติมค่าจริง อย่านำ secrets เข้า Git
 
 ```bash
 npm install
-cp .env.example .env
-# ตั้งค่าจริงใน .env
 npx prisma migrate deploy
 npm run dev
 ```
 
-เปิด `http://localhost:3000/setup` การสร้าง Admin ทำได้เพียงครั้งเดียว
+สำหรับ Vercel Blob client upload ที่รันจาก localhost, callback จาก Vercel จะเข้าถึง localhost ไม่ได้ หากต้องการทดสอบ callback จริงให้ตั้ง `VERCEL_BLOB_CALLBACK_URL` เป็น URL ของ tunnel ตามคู่มือ Vercel Blob
 
-## แก้โค้ดด้วย AI ภายหลัง
+## ข้อจำกัด
 
-เมื่อ Deploy จาก Railway Template ค่าเริ่มต้นจะยังชี้ไป repo ต้นทาง ให้ผู้ซื้อใช้ **Eject** ใน Railway Service → Settings → Source เพื่อสร้าง repo ของตนเองก่อนแก้ด้วย GitHub Codespaces และ AI จากนั้นตรวจว่า Railway Deploy จาก repo ใหม่ Prompt ตัวอย่าง: “แก้เฉพาะหน้า `src/app/page.tsx` และ CSS ที่เกี่ยวข้อง เพิ่มแบนเนอร์ร้าน โดยไม่เปลี่ยน checkout, migrations หรือ env variables; รัน build แล้วสรุปผล”
-
-## ขอบเขตและข้อจำกัดของ v0.1
-
-- ชำระเงินแบบโอนและตรวจสลิปด้วยคน ไม่มี Payment Gateway หรือการตรวจสลิปอัตโนมัติ
-- ลูกค้าดูคำสั่งซื้อผ่านลิงก์ URL ที่สุ่มยาวและควรเก็บไว้; ยังไม่มีระบบบัญชีลูกค้า/อีเมลแจ้งเตือน
-- รองรับร้านเดียวและ Admin บัญชีเดียวต่อ deployment
-- ยังไม่มีระบบค่าจัดส่งตามพื้นที่, คูปอง, ภาษี, การพิมพ์ใบเสร็จ หรือระบบขนส่ง
-- ควรตั้ง backup ให้ PostgreSQL และ Bucket ก่อนรับคำสั่งซื้อจริง
-
-## โครงสร้าง
-
-- `src/app` หน้าร้าน, หลังบ้าน, actions และ API routes
-- `src/lib` Database, Auth, Storage และฟังก์ชันราคา
-- `prisma/schema.prisma` โมเดลข้อมูล
-- `prisma/migrations` Migration สำหรับ Railway
-
-## การทดสอบก่อนส่งให้ลูกค้า
-
-1. Deploy ด้วย Railway account ใหม่; ตั้งค่า Admin จาก `/setup`
-2. เพิ่มหมวดหมู่และสินค้า พร้อมรูป
-3. สั่งซื้อและเช็กว่ายอดถูกต้อง แม้แก้ราคาใน localStorage
-4. แนบสลิป ตรวจจาก Admin, ปฏิเสธแล้วแนบใหม่, ยืนยันจ่าย
-5. ยกเลิกออเดอร์และตรวจว่าสต็อกกลับมา
-6. Eject source แล้วแก้ข้อความเล็กน้อยผ่าน Codespaces และตรวจว่า Railway Deploy จาก repo ของลูกค้า
+- ชำระเงินด้วยการโอนและตรวจสลิปด้วยคน
+- ลูกค้าต้องเก็บลิงก์คำสั่งซื้อไว้; ยังไม่มีบัญชีลูกค้าหรืออีเมลแจ้งเตือน
+- ร้านเดียวและ Admin บัญชีเดียวต่อ deployment
+- ควรตั้ง backup ให้ PostgreSQL และ Blob ก่อนรับออเดอร์จริง

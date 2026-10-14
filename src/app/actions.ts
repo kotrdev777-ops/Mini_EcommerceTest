@@ -3,7 +3,7 @@
 import { db } from '@/lib/db';
 import { requireAdmin, signIn, signOut } from '@/lib/auth';
 import { priceFromInput } from '@/lib/format';
-import { uploadImage } from '@/lib/storage';
+import { verifiedImage } from '@/lib/storage';
 import bcrypt from 'bcryptjs';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
@@ -95,8 +95,8 @@ export async function saveProduct(form: FormData) {
   const id = text(form, 'id');
   const name = text(form, 'name');
   if (!name) throw new Error('ต้องระบุชื่อสินค้า');
-  const file = form.get('image');
-  const imageKey = file instanceof File && file.size > 0 ? await uploadImage(file, 'products') : undefined;
+  const imageKey = text(form, 'imageKey', 100) || undefined;
+  if (imageKey) await verifiedImage(imageKey, 'products');
   const categoryId = text(form, 'categoryId');
   const data = {
     name,

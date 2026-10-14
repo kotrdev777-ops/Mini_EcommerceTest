@@ -6,8 +6,8 @@ export const maxImageSize = 5 * 1024 * 1024;
 
 export function blobToken(folder: 'products' | 'slips') {
   const token = folder === 'products'
-    ? process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN
-    : process.env.BLOB_SLIPS_READ_WRITE_TOKEN;
+    ? process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
+    : process.env.BLOB_SLIPS_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) throw new Error(`Blob store for ${folder} is not configured`);
   return token;
 }

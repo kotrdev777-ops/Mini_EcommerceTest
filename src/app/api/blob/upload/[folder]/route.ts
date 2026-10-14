@@ -33,7 +33,26 @@ export async function POST(request: Request, context: { params: Promise<{ folder
       onUploadCompleted: async () => {},
     });
     return Response.json(result);
-  } catch {
-    return Response.json({ error: 'Upload denied' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown upload error';
+    let safeMessage = message;
+    for (const secret of [process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN, process.env.BLOB_SLIPS_READ_WRITE_TOKEN]) {
+      if (secret) safeMessage = safeMessage.replaceAll(secret, '[redacted]');
+    }
+    safeMessage = safeMessage.replace(/postgres(?:ql)?:\/\/\S+/gi, '[database URL]');
+    const code = message.startsWith('Blob store for ') ? 'storage_not_configured'
+      : message === 'Unauthorized' ? 'admin_session_expired'
+      : message === 'Invalid pathname' ? 'invalid_pathname'
+      : message === 'Invalid order' || message === 'Order cannot accept a slip' ? 'order_not_eligible'
+      : 'blob_upload_failed';
+    console.error('[blob-upload]', {
+      folder: (await context.params).folder,
+      code,
+      name: error instanceof Error ? error.name : 'UnknownError',
+      message: safeMessage,
+    });
+    return Response.json({ error: 'Upload denied', code }, {
+      status: code === 'admin_session_expired' ? 401 : code === 'storage_not_configured' ? 503 : 400,
+    });
   }
 }

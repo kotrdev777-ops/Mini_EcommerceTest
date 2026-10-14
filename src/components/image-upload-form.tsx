@@ -22,8 +22,16 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
     const file = data.get(folder === 'products' ? 'image' : 'slip');
     if (!(file instanceof File) || !file.size) {
       if (folder === 'products') {
-        data.delete('image');
-        await action?.(data);
+        setBusy(true);
+        setError('');
+        try {
+          data.delete('image');
+          await action?.(data);
+          window.location.assign('/admin/products');
+        } catch {
+          setError('บันทึกสินค้าไม่สำเร็จ กรุณาลองอีกครั้ง');
+          setBusy(false);
+        }
       } else setError('กรุณาเลือกรูปสลิป');
       return;
     }
@@ -44,6 +52,7 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
         data.delete('image');
         data.set('imageKey', blob.pathname);
         await action?.(data);
+        window.location.assign('/admin/products');
       } else {
         const response = await fetch(`/api/orders/${orderCode}/slip`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -53,7 +62,7 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
         window.location.href = `/order/${orderCode}?uploaded=1`;
       }
     } catch {
-      setError('อัปโหลดไม่สำเร็จ กรุณาลองอีกครั้ง');
+      setError(folder === 'products' ? 'อัปโหลดหรือบันทึกสินค้าไม่สำเร็จ กรุณาลองอีกครั้ง' : 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองอีกครั้ง');
       setBusy(false);
     }
   }

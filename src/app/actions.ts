@@ -111,7 +111,6 @@ export async function saveProduct(form: FormData) {
   else await db().product.create({ data });
   revalidatePath('/');
   revalidatePath('/admin/products');
-  redirect('/admin/products');
 }
 
 export async function setOrderStatus(form: FormData) {

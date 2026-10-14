@@ -11,7 +11,7 @@ export function blobCredentials(folder: 'products' | 'slips') {
   const storeId = folder === 'products'
     ? process.env.BLOB_PRODUCTS_STORE_ID
     : process.env.BLOB_SLIPS_STORE_ID;
-  if (storeId && process.env.VERCEL_OIDC_TOKEN) return { storeId };
+  if (storeId) return { storeId };
   if (token) return { token };
   throw new Error(`Blob store for ${folder} is not configured`);
 }

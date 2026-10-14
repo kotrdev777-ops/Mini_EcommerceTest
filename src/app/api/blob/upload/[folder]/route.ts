@@ -50,6 +50,9 @@ export async function POST(request: Request, context: { params: Promise<{ folder
       code,
       name: error instanceof Error ? error.name : 'UnknownError',
       message: safeMessage,
+      hasProductsStoreId: Boolean(process.env.BLOB_PRODUCTS_STORE_ID),
+      hasSlipsStoreId: Boolean(process.env.BLOB_SLIPS_STORE_ID),
+      hasOidcToken: Boolean(process.env.VERCEL_OIDC_TOKEN),
     });
     return Response.json({ error: 'Upload denied', code }, {
       status: code === 'admin_session_expired' ? 401 : code === 'storage_not_configured' ? 503 : 400,

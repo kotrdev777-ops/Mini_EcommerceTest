@@ -1,5 +1,5 @@
 import { adminId } from '@/lib/auth';
-import { blobToken, validImageKey } from '@/lib/storage';
+import { blobCredentials, validImageKey } from '@/lib/storage';
 import { get, head } from '@vercel/blob';
 import { db } from '@/lib/db';
 
@@ -17,10 +17,10 @@ export async function GET(_: Request, context: { params: Promise<{ key: string }
   }
   try {
     if (key.startsWith('products/')) {
-      const object = await head(key, { token: blobToken('products') });
+      const object = await head(key, blobCredentials('products'));
       return Response.redirect(object.url, 307);
     }
-    const object = await get(key, { access: 'private', token: blobToken('slips') });
+    const object = await get(key, { access: 'private', ...blobCredentials('slips') });
     if (!object || object.statusCode !== 200) return new Response('Not found', { status: 404 });
     return new Response(object.stream, {
       headers: {

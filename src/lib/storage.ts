@@ -4,12 +4,16 @@ import { get, head } from '@vercel/blob';
 export const imageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 export const maxImageSize = 5 * 1024 * 1024;
 
-export function blobToken(folder: 'products' | 'slips') {
+export function blobCredentials(folder: 'products' | 'slips') {
   const token = folder === 'products'
-    ? process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
-    : process.env.BLOB_SLIPS_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) throw new Error(`Blob store for ${folder} is not configured`);
-  return token;
+    ? process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN
+    : process.env.BLOB_SLIPS_READ_WRITE_TOKEN;
+  const storeId = folder === 'products'
+    ? process.env.BLOB_PRODUCTS_STORE_ID
+    : process.env.BLOB_SLIPS_STORE_ID;
+  if (storeId && process.env.VERCEL_OIDC_TOKEN) return { storeId };
+  if (token) return { token };
+  throw new Error(`Blob store for ${folder} is not configured`);
 }
 
 export function validImageKey(key: string, folder: 'products' | 'slips') {
@@ -18,12 +22,12 @@ export function validImageKey(key: string, folder: 'products' | 'slips') {
 
 export async function verifiedImage(key: string, folder: 'products' | 'slips') {
   if (!validImageKey(key, folder)) throw new Error('Invalid image key');
-  const token = blobToken(folder);
-  const metadata = await head(key, { token });
+  const credentials = blobCredentials(folder);
+  const metadata = await head(key, credentials);
   if (!metadata || !imageTypes.includes(metadata.contentType) || metadata.size < 1 || metadata.size > maxImageSize) {
     throw new Error('Invalid image');
   }
-  const response = await get(key, { token, access: folder === 'slips' ? 'private' : 'public' });
+  const response = await get(key, { ...credentials, access: folder === 'slips' ? 'private' : 'public' });
   if (!response || response.statusCode !== 200 || !response.stream) throw new Error('Image not found');
   const bytes = Buffer.from(await new Response(response.stream).arrayBuffer());
   const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;

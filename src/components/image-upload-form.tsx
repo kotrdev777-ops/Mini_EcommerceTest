@@ -1,6 +1,6 @@
 'use client';
 
-import { upload } from '@vercel/blob/client';
+import { uploadPresigned } from '@vercel/blob/client';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -35,7 +35,7 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
     setError('');
     try {
       const key = `${folder}/${crypto.randomUUID()}.${extensions[file.type]}`;
-      const blob = await upload(key, file, {
+      const blob = await uploadPresigned(key, file, {
         access: folder === 'products' ? 'public' : 'private',
         handleUploadUrl: `/api/blob/upload/${folder}`,
         clientPayload: orderCode,

@@ -6,7 +6,7 @@
 
 1. สร้าง Vercel project จาก repository นี้ แนะนำแผน Pro เมื่อใช้รับออเดอร์เชิงพาณิชย์
 2. ใน Storage ของ project สร้าง PostgreSQL ผ่าน Marketplace (เช่น Neon) และเชื่อมกับ project ให้มี `DATABASE_URL` สำหรับ Production
-3. สร้าง Vercel Blob **สอง store**: `products` แบบ **Public** และ `slips` แบบ **Private** เชื่อมทั้งสอง store กับ project แล้วคัดลอก read/write token ไปตั้ง Environment Variables ชื่อ `BLOB_PRODUCTS_READ_WRITE_TOKEN` และ `BLOB_SLIPS_READ_WRITE_TOKEN` ตามลำดับ ห้ามนำ token ไปไว้ใน client หรือ Git
+3. สร้าง Vercel Blob **สอง store**: `products` แบบ **Public** และ `slips` แบบ **Private** เชื่อมทั้งสอง store กับ project ใน Production แล้วตั้ง `BLOB_PRODUCTS_STORE_ID` และ `BLOB_SLIPS_STORE_ID` เป็น Store ID ของแต่ละ store ใน Project Environment Variables ไม่ต้องสร้าง read/write token เมื่อเชื่อมด้วย OIDC; Vercel ส่ง `VERCEL_OIDC_TOKEN` ให้ Function โดยอัตโนมัติ
 4. ตั้ง `SESSION_SECRET` เป็นค่าสุ่มอย่างน้อย 32 ตัวอักษร และ `SETUP_SECRET` เป็นค่าสุ่มอีกค่าหนึ่งอย่างน้อย 16 ตัวอักษรใน Vercel Environment Variables
 5. Deploy: `vercel.json` สั่ง `npm run vercel-build` ซึ่ง generate Prisma client, รัน `prisma migrate deploy` แล้ว build Next.js หาก migration ล้มเหลว build จะหยุด
 6. เปิด `/setup` เพื่อสร้างร้านและ Admin ครั้งแรก จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป
@@ -15,12 +15,14 @@
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string จาก Marketplace |
 | `DATABASE_URL_UNPOOLED` | Neon direct connection สำหรับ Prisma migration; Neon integration เพิ่มให้อัตโนมัติ หากไม่มีจะใช้ `DATABASE_URL` |
-| `BLOB_PRODUCTS_READ_WRITE_TOKEN` | Token ของ public Blob store สำหรับรูปสินค้า |
-| `BLOB_SLIPS_READ_WRITE_TOKEN` | Token ของ private Blob store สำหรับสลิป |
+| `BLOB_PRODUCTS_STORE_ID` | Store ID ของ public Blob store สำหรับรูปสินค้า |
+| `BLOB_SLIPS_STORE_ID` | Store ID ของ private Blob store สำหรับสลิป |
 | `SESSION_SECRET` | Signing key สำหรับ Admin session |
 | `SETUP_SECRET` | รหัสติดตั้งร้านครั้งแรก |
 
 หากเปิด Preview deployment ให้เชื่อม PostgreSQL และ Blob stores **แยกจาก Production** ใน Environment Variables ของ Preview เพราะ build ของ Preview จะรัน migration ด้วย ควรเลือก database region ใกล้กับ Vercel Functions เพื่อลด latency
+
+Store ID ดูได้จากหน้า Storage ของ store หรือค่า `BLOB_STORE_ID` ที่ Vercel เพิ่มเมื่อเชื่อม store; เมื่อมีสอง store ให้คัดลอก ID ของแต่ละแห่งมาใช้ชื่อตัวแปรข้างต้น หากเป็น store แบบเก่าที่ใช้ read/write token สามารถตั้ง `BLOB_PRODUCTS_READ_WRITE_TOKEN` และ `BLOB_SLIPS_READ_WRITE_TOKEN` แทนได้ หลังแก้ Environment Variables ต้อง Redeploy เพื่อให้ Function เห็นค่าใหม่
 
 รูปสินค้าเปิดสาธารณะผ่าน `/api/media/...`; สลิปอยู่ใน private Blob store และ route ตรวจ Admin login ก่อนส่งไฟล์ ขนาดรูปสูงสุด 5 MB และอัปโหลดจาก browser ไป Blob โดยตรง ไม่ผ่านขีดจำกัด request body ของ Vercel Function
 

@@ -1,7 +1,8 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { issueSignedToken } from '@vercel/blob';
+import { handleUploadPresigned, type HandleUploadPresignedBody } from '@vercel/blob/client';
 import { adminId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { blobToken, imageTypes, maxImageSize } from '@/lib/storage';
+import { blobCredentials, imageTypes, maxImageSize } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 
@@ -9,11 +10,11 @@ export async function POST(request: Request, context: { params: Promise<{ folder
   try {
     const { folder } = await context.params;
     if (folder !== 'products' && folder !== 'slips') return new Response('Not found', { status: 404 });
-    const body = await request.json() as HandleUploadBody;
-    const token = blobToken(folder);
-    const result = await handleUpload({
-      body, request, token,
-      onBeforeGenerateToken: async (requestedPathname, clientPayload) => {
+    const body = await request.json() as HandleUploadPresignedBody;
+    const credentials = blobCredentials(folder);
+    const result = await handleUploadPresigned({
+      body, request,
+      getSignedToken: async (requestedPathname, clientPayload) => {
         const extension = requestedPathname.match(/\.(jpg|png|webp)$/)?.[1];
         if (!extension || !new RegExp(`^${folder}/[a-f0-9-]{36}\\.${extension}$`).test(requestedPathname)) throw new Error('Invalid pathname');
         if (folder === 'products') {
@@ -24,19 +25,18 @@ export async function POST(request: Request, context: { params: Promise<{ folder
           const order = await db().order.findUnique({ where: { code }, select: { status: true } });
           if (!order || !['AWAITING_SLIP', 'REJECTED'].includes(order.status)) throw new Error('Order cannot accept a slip');
         }
+        const validUntil = Date.now() + 5 * 60 * 1000;
         return {
-          allowedContentTypes: imageTypes,
-          maximumSizeInBytes: maxImageSize,
-          validUntil: Date.now() + 5 * 60 * 1000,
+          token: await issueSignedToken({ ...credentials, pathname: requestedPathname, operations: ['put'], validUntil }),
+          urlOptions: { allowedContentTypes: imageTypes, maximumSizeInBytes: maxImageSize, validUntil },
         };
       },
-      onUploadCompleted: async () => {},
     });
     return Response.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown upload error';
     let safeMessage = message;
-    for (const secret of [process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN, process.env.BLOB_SLIPS_READ_WRITE_TOKEN]) {
+    for (const secret of [process.env.BLOB_PRODUCTS_READ_WRITE_TOKEN, process.env.BLOB_SLIPS_READ_WRITE_TOKEN, process.env.VERCEL_OIDC_TOKEN]) {
       if (secret) safeMessage = safeMessage.replaceAll(secret, '[redacted]');
     }
     safeMessage = safeMessage.replace(/postgres(?:ql)?:\/\/\S+/gi, '[database URL]');

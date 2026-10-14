@@ -12,8 +12,11 @@ export async function POST(request: Request, context: { params: Promise<{ folder
     if (folder !== 'products' && folder !== 'slips') return new Response('Not found', { status: 404 });
     const body = await request.json() as HandleUploadPresignedBody;
     const credentials = blobCredentials(folder);
+    const webhookPublicKey = folder === 'products'
+      ? process.env.BLOB_PRODUCTS_WEBHOOK_PUBLIC_KEY
+      : process.env.BLOB_SLIPS_WEBHOOK_PUBLIC_KEY;
     const result = await handleUploadPresigned({
-      body, request,
+      body, request, webhookPublicKey,
       getSignedToken: async (requestedPathname, clientPayload) => {
         const extension = requestedPathname.match(/\.(jpg|png|webp)$/)?.[1];
         if (!extension || !new RegExp(`^${folder}/[a-f0-9-]{36}\\.${extension}$`).test(requestedPathname)) throw new Error('Invalid pathname');
@@ -52,7 +55,8 @@ export async function POST(request: Request, context: { params: Promise<{ folder
       message: safeMessage,
       hasProductsStoreId: Boolean(process.env.BLOB_PRODUCTS_STORE_ID),
       hasSlipsStoreId: Boolean(process.env.BLOB_SLIPS_STORE_ID),
-      hasOidcToken: Boolean(process.env.VERCEL_OIDC_TOKEN),
+      hasProductsWebhookPublicKey: Boolean(process.env.BLOB_PRODUCTS_WEBHOOK_PUBLIC_KEY),
+      hasSlipsWebhookPublicKey: Boolean(process.env.BLOB_SLIPS_WEBHOOK_PUBLIC_KEY),
     });
     return Response.json({ error: 'Upload denied', code }, {
       status: code === 'admin_session_expired' ? 401 : code === 'storage_not_configured' ? 503 : 400,

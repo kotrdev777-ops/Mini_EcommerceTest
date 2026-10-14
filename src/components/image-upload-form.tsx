@@ -27,11 +27,13 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
         try {
           data.delete('image');
           await action?.(data);
-          window.location.assign('/admin/products');
-        } catch {
+        } catch (error) {
+          console.error('[product-form] save failed', error);
           setError('บันทึกสินค้าไม่สำเร็จ กรุณาลองอีกครั้ง');
           setBusy(false);
+          return;
         }
+        window.location.assign('/admin/products');
       } else setError('กรุณาเลือกรูปสลิป');
       return;
     }
@@ -41,6 +43,7 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
     }
     setBusy(true);
     setError('');
+    let stage: 'upload' | 'save' = 'upload';
     try {
       const key = `${folder}/${crypto.randomUUID()}.${extensions[file.type]}`;
       const blob = await uploadPresigned(key, file, {
@@ -51,20 +54,23 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
       if (folder === 'products') {
         data.delete('image');
         data.set('imageKey', blob.pathname);
+        stage = 'save';
         await action?.(data);
-        window.location.assign('/admin/products');
       } else {
+        stage = 'save';
         const response = await fetch(`/api/orders/${orderCode}/slip`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageKey: blob.pathname }),
         });
         if (!response.ok) throw new Error('บันทึกสลิปไม่สำเร็จ');
-        window.location.href = `/order/${orderCode}?uploaded=1`;
       }
-    } catch {
-      setError(folder === 'products' ? 'อัปโหลดหรือบันทึกสินค้าไม่สำเร็จ กรุณาลองอีกครั้ง' : 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองอีกครั้ง');
+    } catch (error) {
+      console.error(`[image-form] ${stage} failed`, error);
+      setError(stage === 'upload' ? 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง' : folder === 'products' ? 'อัปโหลดสำเร็จ แต่บันทึกสินค้าไม่สำเร็จ' : 'อัปโหลดสำเร็จ แต่บันทึกสลิปไม่สำเร็จ');
       setBusy(false);
+      return;
     }
+    window.location.assign(folder === 'products' ? '/admin/products' : `/order/${orderCode}?uploaded=1`);
   }
 
   return <form ref={formRef} onSubmit={submit} className={className}>{children}{error && <p className="error" role="alert">{error}</p>}{busy && <p className="muted">กำลังอัปโหลด...</p>}</form>;

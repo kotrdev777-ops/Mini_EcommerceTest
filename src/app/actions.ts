@@ -91,26 +91,41 @@ export async function addCategory(form: FormData) {
 }
 
 export async function saveProduct(form: FormData) {
-  await requireAdmin();
-  const id = text(form, 'id');
-  const name = text(form, 'name');
-  if (!name) throw new Error('ต้องระบุชื่อสินค้า');
-  const imageKey = text(form, 'imageKey', 100) || undefined;
-  if (imageKey) await verifiedImage(imageKey, 'products');
-  const categoryId = text(form, 'categoryId');
-  const data = {
-    name,
-    description: text(form, 'description', 3000),
-    price: priceFromInput(form.get('price')),
-    stock: positiveInt(text(form, 'stock'), 'จำนวนสินค้า'),
-    active: form.get('active') === 'on',
-    categoryId: categoryId || null,
-    ...(imageKey ? { imageKey } : {}),
-  };
-  if (id) await db().product.update({ where: { id }, data });
-  else await db().product.create({ data });
-  revalidatePath('/');
-  revalidatePath('/admin/products');
+  let stage = 'authorization';
+  try {
+    await requireAdmin();
+    stage = 'validation';
+    const id = text(form, 'id');
+    const name = text(form, 'name');
+    if (!name) throw new Error('ต้องระบุชื่อสินค้า');
+    const imageKey = text(form, 'imageKey', 100) || undefined;
+    if (imageKey) {
+      stage = 'image';
+      await verifiedImage(imageKey, 'products');
+    }
+    stage = 'fields';
+    const categoryId = text(form, 'categoryId');
+    const data = {
+      name,
+      description: text(form, 'description', 3000),
+      price: priceFromInput(form.get('price')),
+      stock: positiveInt(text(form, 'stock'), 'จำนวนสินค้า'),
+      active: form.get('active') === 'on',
+      categoryId: categoryId || null,
+      ...(imageKey ? { imageKey } : {}),
+    };
+    stage = 'database';
+    if (id) await db().product.update({ where: { id }, data });
+    else await db().product.create({ data });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[product-save]', {
+      stage,
+      name: error instanceof Error ? error.name : 'UnknownError',
+      message: message.replace(/postgres(?:ql)?:\/\/\S+/gi, '[database URL]'),
+    });
+    throw error;
+  }
 }
 
 export async function setOrderStatus(form: FormData) {

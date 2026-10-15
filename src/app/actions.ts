@@ -32,7 +32,7 @@ export async function setup(form: FormData) {
   const bankName = text(form, 'bankName');
   const bankAccountName = text(form, 'bankAccountName');
   const bankAccountNumber = text(form, 'bankAccountNumber');
-  if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 12 || !name) throw new Error('กรอกอีเมล ชื่อร้าน และรหัสผ่านอย่างน้อย 12 ตัวอักษร');
+  if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || !name) throw new Error('กรอกอีเมล ชื่อร้าน และรหัสผ่านอย่างน้อย 8 ตัวอักษร');
   if (!bankName || !bankAccountName || !bankAccountNumber) throw new Error('ต้องกรอกบัญชีรับโอนเงินให้ครบ');
   if (await db().admin.count()) redirect('/admin/login');
   const passwordHash = await bcrypt.hash(password, 12);

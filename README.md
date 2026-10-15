@@ -7,9 +7,9 @@
 1. สร้าง Vercel project จาก repository นี้ แนะนำแผน Pro เมื่อใช้รับออเดอร์เชิงพาณิชย์
 2. ใน Storage ของ project สร้าง PostgreSQL ผ่าน Marketplace (เช่น Neon) และเชื่อมกับ project ให้มี `DATABASE_URL` สำหรับ Production
 3. สร้าง Vercel Blob **สอง store**: `products` แบบ **Public** และ `slips` แบบ **Private** เชื่อมทั้งสอง store กับ project ใน Production แล้วตั้ง `BLOB_PRODUCTS_STORE_ID` และ `BLOB_SLIPS_STORE_ID` เป็น Store ID ของแต่ละ store ใน Project Environment Variables ไม่ต้องสร้าง read/write token เมื่อเชื่อมด้วย OIDC; Vercel ส่ง `VERCEL_OIDC_TOKEN` ให้ Function โดยอัตโนมัติ
-4. ตั้ง `SESSION_SECRET` เป็นค่าสุ่มอย่างน้อย 32 ตัวอักษร และ `SETUP_SECRET` เป็นค่าสุ่มอีกค่าหนึ่งอย่างน้อย 16 ตัวอักษรใน Vercel Environment Variables
+4. ตั้ง `SESSION_SECRET` เป็นค่าสุ่มอย่างน้อย 32 ตัวอักษร และ `SETUP_SECRET` เป็นค่าสุ่มที่คุณกำหนดเองอีกค่าหนึ่งอย่างน้อย 16 ตัวอักษรใน Vercel Environment Variables (ไม่มีค่าตายตัว)
 5. Deploy: `vercel.json` สั่ง `npm run vercel-build` ซึ่ง generate Prisma client, รัน `prisma migrate deploy` แล้ว build Next.js หาก migration ล้มเหลว build จะหยุด
-6. เปิด `/setup` เพื่อสร้างร้านและ Admin ครั้งแรก จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป
+6. เปิด `/setup` แล้วกรอกค่า `SETUP_SECRET` ที่คุณตั้งไว้เพื่อสร้างร้านและ Admin ครั้งแรก (รหัสผ่าน Admin อย่างน้อย 8 ตัวอักษร) จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป
 
 | Variable | ใช้ทำอะไร |
 | --- | --- |
@@ -18,7 +18,7 @@
 | `BLOB_PRODUCTS_STORE_ID` | Store ID ของ public Blob store สำหรับรูปสินค้า |
 | `BLOB_SLIPS_STORE_ID` | Store ID ของ private Blob store สำหรับสลิป |
 | `SESSION_SECRET` | Signing key สำหรับ Admin session |
-| `SETUP_SECRET` | รหัสติดตั้งร้านครั้งแรก |
+| `SETUP_SECRET` | รหัสติดตั้งร้านครั้งแรกที่คุณกำหนดเอง (อย่างน้อย 16 ตัวอักษร) |
 
 หากเปิด Preview deployment ให้เชื่อม PostgreSQL และ Blob stores **แยกจาก Production** ใน Environment Variables ของ Preview เพราะ build ของ Preview จะรัน migration ด้วย ควรเลือก database region ใกล้กับ Vercel Functions เพื่อลด latency
 

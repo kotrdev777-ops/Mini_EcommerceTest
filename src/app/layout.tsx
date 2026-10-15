@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { db } from '@/lib/db';
-import './globals.css';
+import '@/styles/globals.css';
 
 export const metadata: Metadata = { title: 'Mini E-commerce', description: 'ร้านค้าออนไลน์พร้อมใช้งาน' };
 

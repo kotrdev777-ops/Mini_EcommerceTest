@@ -52,7 +52,10 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
       if (!signed.ok) throw new Error('Could not authorize upload');
       const { url } = await signed.json() as { url: string };
       const uploaded = await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-      if (!uploaded.ok) throw new Error('R2 upload failed');
+      if (!uploaded.ok) {
+    const detail = await uploaded.text().catch(() => '');
+    throw new Error(`R2 upload failed (${uploaded.status})${detail ? `: ${detail.slice(0, 120)}` : ''}`);
+  }
       if (folder === 'products') {
         data.delete('image');
         data.set('imageKey', key);

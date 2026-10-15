@@ -27,7 +27,7 @@ export async function POST(request: Request, context: { params: Promise<{ folder
     }), { expiresIn: 300 });
     return Response.json({ url, key: body.key });
   } catch (error) {
-    console.error('[r2-upload]', error instanceof Error ? error.name : 'UnknownError');
+    console.error('[r2-upload]', error instanceof Error ? error.message : error);
     return Response.json({ error: 'Upload unavailable' }, { status: 503 });
   }
 }

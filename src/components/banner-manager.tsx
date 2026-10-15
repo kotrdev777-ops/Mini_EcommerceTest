@@ -49,7 +49,10 @@ export function BannerManager({ slides }: { slides: Slide[] }) {
         if (!signed.ok) throw new Error('ขอสิทธิ์อัปโหลดรูปไม่สำเร็จ');
         const { url } = await signed.json() as { url: string };
         const uploaded = await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-        if (!uploaded.ok) throw new Error('อัปโหลดรูปไม่สำเร็จ กรุณาตรวจการเชื่อมต่อ object storage');
+        if (!uploaded.ok) {
+    const detail = await uploaded.text().catch(() => '');
+    throw new Error(`อัปโหลดรูปไม่สำเร็จ (${uploaded.status})${detail ? `: ${detail.slice(0, 120)}` : ''}`);
+  }
         data.set('imageKey', key);
       }
       data.delete('image');

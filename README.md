@@ -7,9 +7,9 @@
 1. สร้าง Vercel project จาก repository นี้ แนะนำแผน Pro เมื่อใช้รับออเดอร์เชิงพาณิชย์
 2. ใน Storage ของ project สร้าง PostgreSQL ผ่าน Marketplace (เช่น Neon) และเชื่อมกับ project ให้มี `DATABASE_URL` สำหรับ Production
 3. สร้าง Vercel Blob **สอง store**: `products` แบบ **Public** และ `slips` แบบ **Private** เชื่อมทั้งสอง store กับ project ใน Production แล้วตั้ง `BLOB_PRODUCTS_STORE_ID` และ `BLOB_SLIPS_STORE_ID` เป็น Store ID ของแต่ละ store ใน Project Environment Variables ไม่ต้องสร้าง read/write token เมื่อเชื่อมด้วย OIDC; Vercel ส่ง `VERCEL_OIDC_TOKEN` ให้ Function โดยอัตโนมัติ
-4. ตั้ง `SESSION_SECRET` เป็นค่าสุ่มอย่างน้อย 32 ตัวอักษร และ `SETUP_SECRET` เป็นค่าสุ่มที่คุณกำหนดเองอีกค่าหนึ่งอย่างน้อย 16 ตัวอักษรใน Vercel Environment Variables (ไม่มีค่าตายตัว)
+4. `SESSION_SECRET` ไม่จำเป็นต้องตั้ง ระบบจะสร้าง signing key แบบสุ่มและเก็บใน PostgreSQL เอง หากต้องการกำหนดเอง สามารถตั้งใน Vercel Environment Variables ได้โดยไม่มีจำนวนอักษรขั้นต่ำ แต่ควรใช้ค่าที่คาดเดายาก
 5. Deploy: `vercel.json` สั่ง `npm run vercel-build` ซึ่ง generate Prisma client, รัน `prisma migrate deploy` แล้ว build Next.js หาก migration ล้มเหลว build จะหยุด
-6. เปิด `/setup` แล้วกรอกค่า `SETUP_SECRET` ที่คุณตั้งไว้เพื่อสร้างร้านและ Admin ครั้งแรก (รหัสผ่าน Admin อย่างน้อย 8 ตัวอักษร) จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป
+6. เปิด `/setup` แล้วกรอกรหัสเริ่มต้น `kotrdev7879` เพื่อสร้างร้านและ Admin ครั้งแรก (รหัสผ่าน Admin อย่างน้อย 8 ตัวอักษร) จากนั้นเพิ่มสินค้าและทดลองสั่งซื้อ/แนบสลิป ควรตั้งค่าทันทีหลัง deploy เพราะใครที่รู้รหัสเริ่มต้นและเข้าหน้านี้ก่อนจะสร้าง Admin ได้
 
 | Variable | ใช้ทำอะไร |
 | --- | --- |
@@ -17,8 +17,7 @@
 | `DATABASE_URL_UNPOOLED` | Neon direct connection สำหรับ Prisma migration; Neon integration เพิ่มให้อัตโนมัติ หากไม่มีจะใช้ `DATABASE_URL` |
 | `BLOB_PRODUCTS_STORE_ID` | Store ID ของ public Blob store สำหรับรูปสินค้า |
 | `BLOB_SLIPS_STORE_ID` | Store ID ของ private Blob store สำหรับสลิป |
-| `SESSION_SECRET` | Signing key สำหรับ Admin session |
-| `SETUP_SECRET` | รหัสติดตั้งร้านครั้งแรกที่คุณกำหนดเอง (อย่างน้อย 16 ตัวอักษร) |
+| `SESSION_SECRET` | ไม่บังคับ; signing key สำหรับ Admin session หากไม่ตั้ง ระบบสร้างและเก็บใน PostgreSQL |
 
 หากเปิด Preview deployment ให้เชื่อม PostgreSQL และ Blob stores **แยกจาก Production** ใน Environment Variables ของ Preview เพราะ build ของ Preview จะรัน migration ด้วย ควรเลือก database region ใกล้กับ Vercel Functions เพื่อลด latency
 

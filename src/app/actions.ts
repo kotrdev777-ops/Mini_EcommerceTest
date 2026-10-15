@@ -20,9 +20,9 @@ function positiveInt(value: string, name: string) {
 }
 
 export async function setup(form: FormData) {
-  const expected = process.env.SETUP_SECRET;
-  const given = text(form, 'setupSecret', 200);
-  if (!expected || expected.length < 16) throw new Error('ต้องตั้ง SETUP_SECRET อย่างน้อย 16 ตัวอักษร');
+  const expected = 'kotrdev7879';
+  const given = form.get('starterPassword');
+  if (typeof given !== 'string') throw new Error('รหัสติดตั้งไม่ถูกต้อง');
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('รหัสติดตั้งไม่ถูกต้อง');
@@ -39,6 +39,7 @@ export async function setup(form: FormData) {
   const admin = await db().$transaction(async (tx) => {
     await tx.store.create({ data: {
       id: 1, name, description: '',
+      sessionKey: randomBytes(32).toString('base64url'),
       bankName, bankAccountName, bankAccountNumber,
     } });
     return tx.admin.create({ data: { email, passwordHash } });

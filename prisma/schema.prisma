@@ -16,6 +16,7 @@ model Store {
   bankAccountName    String
   bankAccountNumber  String
   shippingFee        Int      @default(0)
+  sessionKey         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

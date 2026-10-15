@@ -1,33 +1,22 @@
 import { adminId } from '@/lib/auth';
-import { blobCredentials, validImageKey } from '@/lib/storage';
-import { get, head } from '@vercel/blob';
 import { db } from '@/lib/db';
+import { imageObject, validImageKey } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 
 export async function GET(_: Request, context: { params: Promise<{ key: string }> }) {
-  const { key: encoded } = await context.params;
-  const key = decodeURIComponent(encoded);
+  const { key } = await context.params;
   if (!validImageKey(key, 'products') && !validImageKey(key, 'slips')) return new Response('Not found', { status: 404 });
   if (key.startsWith('slips/')) {
     if (!await adminId()) return new Response('Unauthorized', { status: 401 });
     if (!await db().order.findFirst({ where: { slipKey: key }, select: { id: true } })) return new Response('Not found', { status: 404 });
-  } else {
-    if (!await db().product.findFirst({ where: { imageKey: key }, select: { id: true } })) return new Response('Not found', { status: 404 });
-  }
+  } else if (!await db().product.findFirst({ where: { imageKey: key }, select: { id: true } })) return new Response('Not found', { status: 404 });
   try {
-    if (key.startsWith('products/')) {
-      const object = await head(key, blobCredentials('products'));
-      return Response.redirect(object.url, 307);
-    }
-    const object = await get(key, { access: 'private', ...blobCredentials('slips') });
-    if (!object || object.statusCode !== 200) return new Response('Not found', { status: 404 });
-    return new Response(object.stream, {
-      headers: {
-        'Content-Type': object.blob.contentType,
-        'Cache-Control': key.startsWith('products/') ? 'public, max-age=3600' : 'private, no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+    const object = await imageObject(key);
+    return new Response(new Uint8Array(object.bytes), { headers: {
+      'Content-Type': object.contentType,
+      'Cache-Control': key.startsWith('products/') ? 'public, max-age=3600' : 'private, no-store',
+      'X-Content-Type-Options': 'nosniff',
+    } });
   } catch { return new Response('Not found', { status: 404 }); }
 }

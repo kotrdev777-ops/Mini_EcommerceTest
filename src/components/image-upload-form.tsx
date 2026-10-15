@@ -1,6 +1,5 @@
 'use client';
 
-import { uploadPresigned } from '@vercel/blob/client';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -46,27 +45,32 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
     let stage: 'upload' | 'save' = 'upload';
     try {
       const key = `${folder}/${crypto.randomUUID()}.${extensions[file.type]}`;
-      const blob = await uploadPresigned(key, file, {
-        access: folder === 'products' ? 'public' : 'private',
-        handleUploadUrl: `/api/blob/upload/${folder}`,
-        clientPayload: orderCode,
+      const signed = await fetch(`/api/r2/upload/${folder}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, contentType: file.type, size: file.size, orderCode }),
       });
+      if (!signed.ok) throw new Error('Could not authorize upload');
+      const { url } = await signed.json() as { url: string };
+      const uploaded = await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      if (!uploaded.ok) throw new Error('R2 upload failed');
       if (folder === 'products') {
         data.delete('image');
-        data.set('imageKey', blob.pathname);
+        data.set('imageKey', key);
         stage = 'save';
         await action?.(data);
       } else {
         stage = 'save';
         const response = await fetch(`/api/orders/${orderCode}/slip`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageKey: blob.pathname }),
+          body: JSON.stringify({ imageKey: key }),
         });
         if (!response.ok) throw new Error('บันทึกสลิปไม่สำเร็จ');
       }
     } catch (error) {
       console.error(`[image-form] ${stage} failed`, error);
-      setError(stage === 'upload' ? 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง' : folder === 'products' ? 'อัปโหลดสำเร็จ แต่บันทึกสินค้าไม่สำเร็จ' : 'อัปโหลดสำเร็จ แต่บันทึกสลิปไม่สำเร็จ');
+      setError(stage === 'upload'
+        ? error instanceof TypeError ? 'เชื่อมต่อ R2 ไม่ได้ กรุณาตรวจ CORS ของ bucket ให้รองรับ origin ของเว็บ' : 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง'
+        : folder === 'products' ? 'อัปโหลดสำเร็จ แต่บันทึกสินค้าไม่สำเร็จ' : 'อัปโหลดสำเร็จ แต่บันทึกสลิปไม่สำเร็จ');
       setBusy(false);
       return;
     }

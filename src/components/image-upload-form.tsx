@@ -4,6 +4,8 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
+class UploadError extends Error {}
+
 export function ImageUploadForm({ folder, orderCode, action, className, children }: {
   folder: 'products' | 'slips'; orderCode?: string; action?: (form: FormData) => void | Promise<void>;
   className?: string; children: ReactNode;
@@ -49,13 +51,17 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, contentType: file.type, size: file.size, orderCode }),
       });
-      if (!signed.ok) throw new Error('Could not authorize upload');
+      if (!signed.ok) throw new UploadError(signed.status === 401 ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : `ขออนุญาตอัปโหลดไม่สำเร็จ (${signed.status})`);
       const { url } = await signed.json() as { url: string };
-      const uploaded = await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-      if (!uploaded.ok) {
-    const detail = await uploaded.text().catch(() => '');
-    throw new Error(`R2 upload failed (${uploaded.status})${detail ? `: ${detail.slice(0, 120)}` : ''}`);
-  }
+      const direct = await fetch(url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+        .then((response) => response.ok, () => false);
+      if (!direct) {
+        console.warn('[image-form] direct R2 upload failed, retrying through server');
+        const headers: Record<string, string> = { 'Content-Type': file.type, 'x-image-key': key };
+        if (orderCode) headers['x-order-code'] = orderCode;
+        const proxied = await fetch(`/api/r2/upload/${folder}`, { method: 'PUT', headers, body: file });
+        if (!proxied.ok) throw new UploadError(proxied.status === 413 ? 'ไฟล์ใหญ่เกินไป กรุณาใช้ไฟล์ไม่เกิน 4 MB' : `อัปโหลดไป R2 ไม่สำเร็จ (${proxied.status})`);
+      }
       if (folder === 'products') {
         data.delete('image');
         data.set('imageKey', key);
@@ -72,7 +78,7 @@ export function ImageUploadForm({ folder, orderCode, action, className, children
     } catch (error) {
       console.error(`[image-form] ${stage} failed`, error);
       setError(stage === 'upload'
-        ? error instanceof TypeError ? 'เชื่อมต่อ R2 ไม่ได้ กรุณาตรวจ CORS ของ bucket ให้รองรับ origin ของเว็บ' : 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง'
+        ? error instanceof UploadError ? error.message : 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง'
         : folder === 'products' ? 'อัปโหลดสำเร็จ แต่บันทึกสินค้าไม่สำเร็จ' : 'อัปโหลดสำเร็จ แต่บันทึกสลิปไม่สำเร็จ');
       setBusy(false);
       return;

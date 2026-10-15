@@ -4,6 +4,10 @@ import { db } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export default async function CheckoutPage() {
-  const store = await db().store.findUnique({ where: { id: 1 } });
-  return <CheckoutForm shippingFee={store?.shippingFee || 0}/>;
+  const shippingMethods = await db().shippingMethod.findMany({
+    where: { active: true },
+    select: { id: true, name: true, price: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return <CheckoutForm shippingMethods={shippingMethods}/>;
 }

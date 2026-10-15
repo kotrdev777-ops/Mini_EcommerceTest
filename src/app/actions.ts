@@ -42,6 +42,11 @@ export async function setup(form: FormData) {
       sessionKey: randomBytes(32).toString('base64url'),
       bankName, bankAccountName, bankAccountNumber,
     } });
+    await tx.shippingMethod.create({ data: { name: 'จัดส่งมาตรฐาน', price: 0 } });
+    await tx.bannerSlide.create({ data: {
+      position: 1, eyebrow: name, title: 'เลือกสิ่งที่ใช่\nในแบบของคุณ',
+      description: 'เลือกชมสินค้าจากร้านของเรา', buttonText: 'เลือกดูสินค้า ↗', link: '/#products',
+    } });
     return tx.admin.create({ data: { email, passwordHash } });
   });
   await signIn(admin.id);
@@ -75,20 +80,111 @@ export async function saveStore(form: FormData) {
     bankName: text(form, 'bankName', 100),
     bankAccountName: text(form, 'bankAccountName', 100),
     bankAccountNumber: text(form, 'bankAccountNumber', 100),
-    shippingFee: priceFromInput(form.get('shippingFee')),
   } });
   revalidatePath('/');
   revalidatePath('/admin/settings');
   redirect('/admin/settings?saved=1');
 }
 
-export async function addCategory(form: FormData) {
+function bannerLink(value: string) {
+  if (!value) return '';
+  if (value.startsWith('/') && !value.startsWith('//') && !/[\\\x00-\x1f]/.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' || url.protocol === 'http:') return url.toString();
+  } catch { /* Invalid URL. */ }
+  throw new Error('ลิงก์ต้องเป็น path ภายในเว็บ หรือ URL http/https');
+}
+
+export async function saveBannerSlide(form: FormData): Promise<{ error?: string }> {
   await requireAdmin();
+  const id = text(form, 'id');
+  const title = text(form, 'title', 200);
+  const imageKey = text(form, 'imageKey', 100);
+  const position = Number(text(form, 'position'));
+  if (!title) return { error: 'กรุณาระบุหัวข้อ banner' };
+  if (!Number.isInteger(position) || position < 1 || position > 5) return { error: 'ลำดับสไลด์ต้องอยู่ระหว่าง 1–5' };
+  let link: string;
+  try {
+    link = bannerLink(text(form, 'link', 1000));
+    if (imageKey) await verifiedImage(imageKey, 'banners');
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'ข้อมูล banner ไม่ถูกต้อง' };
+  }
+  try {
+    await db().$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(481527)`;
+      if (id) {
+        const current = await tx.bannerSlide.findUnique({ where: { id } });
+        if (!current) throw new Error('ไม่พบสไลด์ กรุณาโหลดหน้าใหม่');
+        await tx.bannerSlide.update({ where: { id }, data: {
+          position, eyebrow: text(form, 'eyebrow', 100), title,
+          description: text(form, 'description', 500), buttonText: text(form, 'buttonText', 100), link,
+          active: form.get('active') === 'on', ...(imageKey ? { imageKey } : {}),
+        } });
+      } else {
+        if (!imageKey) throw new Error('กรุณาเลือกรูป banner');
+        if (await tx.bannerSlide.count() >= 5) throw new Error('เพิ่มได้สูงสุด 5 สไลด์');
+        await tx.bannerSlide.create({ data: {
+          position, imageKey, eyebrow: text(form, 'eyebrow', 100), title,
+          description: text(form, 'description', 500), buttonText: text(form, 'buttonText', 100), link,
+          active: form.get('active') === 'on',
+        } });
+      }
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'บันทึก banner ไม่สำเร็จ' };
+  }
+  revalidatePath('/');
+  revalidatePath('/admin/settings');
+  return {};
+}
+
+export async function deleteBannerSlide(id: string): Promise<{ error?: string }> {
+  await requireAdmin();
+  if (!id) return { error: 'ไม่พบสไลด์' };
+  await db().bannerSlide.deleteMany({ where: { id } });
+  revalidatePath('/');
+  revalidatePath('/admin/settings');
+  return {};
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
+export async function saveCategory(form: FormData) {
+  await requireAdmin();
+  const id = text(form, 'id');
   const name = text(form, 'name', 100);
-  if (!name) throw new Error('ต้องระบุชื่อหมวดหมู่');
-  await db().category.create({ data: { name } });
+  if (!name) redirect('/admin/categories?error=name');
+  try {
+    if (id) {
+      const updated = await db().category.updateMany({ where: { id }, data: { name } });
+      if (!updated.count) redirect('/admin/categories?error=missing');
+    } else {
+      await db().category.create({ data: { name } });
+    }
+  } catch (error) {
+    if (isUniqueConstraintError(error)) redirect('/admin/categories?error=duplicate');
+    throw error;
+  }
   revalidatePath('/');
   revalidatePath('/admin/products');
+  revalidatePath('/admin/categories');
+  redirect('/admin/categories?saved=1');
+}
+
+export async function deleteCategory(form: FormData) {
+  await requireAdmin();
+  const id = text(form, 'id');
+  if (!id) redirect('/admin/categories?error=missing');
+  const deleted = await db().category.deleteMany({ where: { id, products: { none: {} } } });
+  if (!deleted.count) redirect('/admin/categories?error=not-empty');
+  revalidatePath('/');
+  revalidatePath('/admin/products');
+  revalidatePath('/admin/categories');
+  redirect('/admin/categories?deleted=1');
 }
 
 export async function saveProduct(form: FormData) {
@@ -118,6 +214,8 @@ export async function saveProduct(form: FormData) {
     stage = 'database';
     if (id) await db().product.update({ where: { id }, data });
     else await db().product.create({ data });
+    revalidatePath('/');
+    revalidatePath('/admin/products');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[product-save]', {
@@ -127,6 +225,77 @@ export async function saveProduct(form: FormData) {
     });
     throw error;
   }
+}
+
+export async function deleteProduct(id: string): Promise<{ error?: string }> {
+  await requireAdmin();
+  if (!id) return { error: 'ไม่พบสินค้า กรุณาโหลดหน้าใหม่' };
+  const deleted = await db().product.deleteMany({ where: { id, orderItems: { none: {} } } });
+  if (!deleted.count) return { error: 'ลบไม่ได้หากสินค้านี้มีประวัติคำสั่งซื้อ กรุณาซ่อนสินค้าแทน' };
+  revalidatePath('/');
+  revalidatePath('/admin/products');
+  return {};
+}
+
+class ShippingError extends Error {}
+
+export async function saveShippingMethod(form: FormData): Promise<{ error?: string }> {
+  await requireAdmin();
+  const id = text(form, 'id');
+  const name = text(form, 'name', 100);
+  const active = form.get('active') === 'on';
+  if (!name) return { error: 'กรุณาระบุชื่อวิธีจัดส่ง' };
+  let price: number;
+  try {
+    price = priceFromInput(form.get('price'));
+  } catch {
+    return { error: 'กรุณาระบุราคาจัดส่งที่ถูกต้อง' };
+  }
+  try {
+    await db().$transaction(async (tx) => {
+      if (id) {
+        const current = await tx.shippingMethod.findUnique({ where: { id } });
+        if (!current) throw new ShippingError('ไม่พบวิธีจัดส่ง กรุณาโหลดหน้าใหม่');
+        if (current.active && !active && await tx.shippingMethod.count({ where: { active: true } }) <= 1) {
+          throw new ShippingError('ต้องมีวิธีจัดส่งที่เปิดใช้งานอย่างน้อยหนึ่งแบบ');
+        }
+        await tx.shippingMethod.update({ where: { id }, data: { name, price, active } });
+      } else {
+        if (!active && await tx.shippingMethod.count() === 0) throw new ShippingError('วิธีจัดส่งแรกต้องเปิดใช้งาน');
+        await tx.shippingMethod.create({ data: { name, price, active } });
+      }
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return { error: 'มีวิธีจัดส่งชื่อนี้แล้ว' };
+    if (error instanceof ShippingError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/cart');
+  revalidatePath('/checkout');
+  revalidatePath('/admin/shipping');
+  return {};
+}
+
+export async function deleteShippingMethod(id: string): Promise<{ error?: string }> {
+  await requireAdmin();
+  if (!id) return { error: 'ไม่พบวิธีจัดส่ง กรุณาโหลดหน้าใหม่' };
+  try {
+    await db().$transaction(async (tx) => {
+      const method = await tx.shippingMethod.findUnique({ where: { id } });
+      if (!method) throw new ShippingError('ไม่พบวิธีจัดส่ง กรุณาโหลดหน้าใหม่');
+      if (method.active && await tx.shippingMethod.count({ where: { active: true } }) <= 1) {
+        throw new ShippingError('ต้องมีวิธีจัดส่งที่เปิดใช้งานอย่างน้อยหนึ่งแบบ');
+      }
+      await tx.shippingMethod.delete({ where: { id } });
+    });
+  } catch (error) {
+    if (error instanceof ShippingError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath('/cart');
+  revalidatePath('/checkout');
+  revalidatePath('/admin/shipping');
+  return {};
 }
 
 export async function setOrderStatus(form: FormData) {
@@ -140,13 +309,14 @@ export async function setOrderStatus(form: FormData) {
     if (status === 'PAID' && order.status !== 'PENDING_REVIEW') throw new Error('ต้องมีสลิปรอตรวจก่อนยืนยัน');
     if (status === 'REJECTED' && order.status !== 'PENDING_REVIEW') throw new Error('สถานะปัจจุบันไม่สามารถปฏิเสธสลิป');
     if (status === 'CANCELLED' && !['AWAITING_SLIP', 'PENDING_REVIEW', 'REJECTED'].includes(order.status)) throw new Error('ไม่สามารถยกเลิกคำสั่งซื้อนี้');
-    const changed = await tx.order.updateMany({ where: { id, status: order.status }, data: { status: status as 'PAID' | 'REJECTED' | 'CANCELLED' } });
+    const changed = await tx.order.updateMany({ where: { id, status: order.status }, data: { status: status as 'PAID' | 'REJECTED' | 'CANCELLED', ...(status === 'PAID' ? { paidAt: new Date() } : {}) } });
     if (changed.count !== 1) throw new Error('สถานะเปลี่ยนไปแล้ว กรุณาโหลดหน้าใหม่');
     if (status === 'CANCELLED') {
       for (const item of order.items) if (item.productId) await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: item.quantity } } });
     }
   });
   revalidatePath('/admin/orders');
+  revalidatePath('/admin');
   revalidatePath('/');
 }
 
@@ -166,10 +336,12 @@ export async function createOrder(_: OrderState, form: FormData): Promise<OrderS
     const customerEmail = text(form, 'customerEmail');
     const customerPhone = text(form, 'customerPhone');
     const address = text(form, 'address', 1000);
+    const shippingMethodId = text(form, 'shippingMethodId');
     if (!customerName || !/^\S+@\S+\.\S+$/.test(customerEmail) || !customerPhone || !address) throw new CheckoutError('กรอกข้อมูลจัดส่งให้ครบ');
     const code = randomBytes(16).toString('hex');
     await db().$transaction(async (tx) => {
-      const store = await tx.store.findUniqueOrThrow({ where: { id: 1 } });
+      const shippingMethod = await tx.shippingMethod.findUnique({ where: { id: shippingMethodId } });
+      if (!shippingMethod?.active) throw new CheckoutError('วิธีจัดส่งไม่พร้อมใช้งาน กรุณาเลือกใหม่');
       const products = await tx.product.findMany({ where: { id: { in: [...counts.keys()] }, active: true } });
       if (products.length !== counts.size) throw new CheckoutError('มีสินค้าที่ไม่พร้อมขาย');
       for (const product of products) {
@@ -178,11 +350,12 @@ export async function createOrder(_: OrderState, form: FormData): Promise<OrderS
         if (updated.count !== 1) throw new CheckoutError('สินค้า ' + product.name + ' มีจำนวนไม่พอ');
       }
       const subtotal = products.reduce((sum, product) => sum + product.price * counts.get(product.id)!, 0);
-      if (subtotal + store.shippingFee > 2_000_000_000) throw new CheckoutError('ยอดคำสั่งซื้อเกินขอบเขตที่รองรับ');
+      if (subtotal + shippingMethod.price > 2_000_000_000) throw new CheckoutError('ยอดคำสั่งซื้อเกินขอบเขตที่รองรับ');
       await tx.order.create({ data: {
         code, customerName, customerEmail, customerPhone, address,
-        note: text(form, 'note', 1000), subtotal, shippingFee: store.shippingFee,
-        total: subtotal + store.shippingFee,
+        note: text(form, 'note', 1000), subtotal,
+        shippingMethodName: shippingMethod.name, shippingFee: shippingMethod.price,
+        total: subtotal + shippingMethod.price,
         items: { create: products.map((product) => ({ productId: product.id, name: product.name, quantity: counts.get(product.id)!, unitPrice: product.price })) },
       } });
     });

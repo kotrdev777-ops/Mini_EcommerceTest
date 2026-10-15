@@ -8,14 +8,14 @@ export const runtime = 'nodejs';
 
 export async function POST(request: Request, context: { params: Promise<{ folder: string }> }) {
   const { folder } = await context.params;
-  if (folder !== 'products' && folder !== 'slips') return new Response('Not found', { status: 404 });
+  if (folder !== 'products' && folder !== 'slips' && folder !== 'banners') return new Response('Not found', { status: 404 });
   try {
     const body = await request.json() as { key?: unknown; contentType?: unknown; size?: unknown; orderCode?: unknown };
     if (typeof body.key !== 'string' || !validImageKey(body.key, folder) || !imageTypes.includes(String(body.contentType)) ||
       typeof body.size !== 'number' || !Number.isInteger(body.size) || body.size < 1 || body.size > maxImageSize) {
       return Response.json({ error: 'Invalid image' }, { status: 400 });
     }
-    if (folder === 'products') {
+    if (folder === 'products' || folder === 'banners') {
       if (!await adminId()) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     } else {
       if (typeof body.orderCode !== 'string' || !/^[a-f0-9]{32}$/.test(body.orderCode)) return Response.json({ error: 'Invalid order' }, { status: 400 });

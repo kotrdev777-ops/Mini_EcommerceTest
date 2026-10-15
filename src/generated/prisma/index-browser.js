@@ -135,6 +135,29 @@ exports.Prisma.StoreScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.ShippingMethodScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  price: 'price',
+  active: 'active',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.BannerSlideScalarFieldEnum = {
+  id: 'id',
+  position: 'position',
+  imageKey: 'imageKey',
+  eyebrow: 'eyebrow',
+  title: 'title',
+  description: 'description',
+  buttonText: 'buttonText',
+  link: 'link',
+  active: 'active',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.AdminScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -170,8 +193,10 @@ exports.Prisma.OrderScalarFieldEnum = {
   note: 'note',
   subtotal: 'subtotal',
   shippingFee: 'shippingFee',
+  shippingMethodName: 'shippingMethodName',
   total: 'total',
   status: 'status',
+  paidAt: 'paidAt',
   slipKey: 'slipKey',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -210,6 +235,8 @@ exports.OrderStatus = exports.$Enums.OrderStatus = {
 
 exports.Prisma.ModelName = {
   Store: 'Store',
+  ShippingMethod: 'ShippingMethod',
+  BannerSlide: 'BannerSlide',
   Admin: 'Admin',
   Category: 'Category',
   Product: 'Product',

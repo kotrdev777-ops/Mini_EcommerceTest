@@ -22,6 +22,29 @@ model Store {
   updatedAt         DateTime @updatedAt
 }
 
+model ShippingMethod {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  price     Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BannerSlide {
+  id          String   @id @default(cuid())
+  position    Int      @default(1)
+  imageKey    String?
+  eyebrow     String   @default("")
+  title       String
+  description String   @default("")
+  buttonText  String   @default("")
+  link        String   @default("")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Admin {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -59,21 +82,23 @@ enum OrderStatus {
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  code          String      @unique
-  customerName  String
-  customerEmail String
-  customerPhone String
-  address       String
-  note          String      @default("")
-  subtotal      Int
-  shippingFee   Int
-  total         Int
-  status        OrderStatus @default(AWAITING_SLIP)
-  slipKey       String?
-  items         OrderItem[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                 String      @id @default(cuid())
+  code               String      @unique
+  customerName       String
+  customerEmail      String
+  customerPhone      String
+  address            String
+  note               String      @default("")
+  subtotal           Int
+  shippingFee        Int
+  shippingMethodName String      @default("")
+  total              Int
+  status             OrderStatus @default(AWAITING_SLIP)
+  paidAt             DateTime?
+  slipKey            String?
+  items              OrderItem[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 }
 
 model OrderItem {

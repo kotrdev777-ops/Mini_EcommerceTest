@@ -20,7 +20,7 @@ export function r2Bucket() {
   return process.env.R2_BUCKET_NAME;
 }
 
-export function validImageKey(key: string, folder: 'products' | 'slips') {
+export function validImageKey(key: string, folder: 'products' | 'slips' | 'banners') {
   return new RegExp(`^${folder}/[a-f0-9-]{36}\\.(jpg|png|webp)$`).test(key);
 }
 
@@ -30,7 +30,7 @@ export async function imageObject(key: string) {
   return { bytes: Buffer.from(await response.Body.transformToByteArray()), contentType: response.ContentType };
 }
 
-export async function verifiedImage(key: string, folder: 'products' | 'slips') {
+export async function verifiedImage(key: string, folder: 'products' | 'slips' | 'banners') {
   if (!validImageKey(key, folder)) throw new Error('Invalid image key');
   const metadata = await r2().send(new HeadObjectCommand({ Bucket: r2Bucket(), Key: key }));
   if (!metadata.ContentType || !imageTypes.includes(metadata.ContentType) || !metadata.ContentLength || metadata.ContentLength > maxImageSize) throw new Error('Invalid image');
